@@ -27,7 +27,7 @@ ${container_runtime} build -t $IMAGE_NAME -f docker/Dockerfile .
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}Build successful!${NC}"
     echo -e "${YELLOW}You can now use the run.sh script to download videos:${NC}"
-    echo -e "${BLUE}VIDEO_ID=https://www.youtube.com/watch?v=dQw4w9WgXcQ ./run.sh${NC}"
+    echo -e "${BLUE}./scripts/run.sh --video-id https://www.youtube.com/watch?v=dQw4w9WgXcQ${NC}"
 else
     echo -e "${YELLOW}Build failed. Please check the error messages above.${NC}"
     exit 1
