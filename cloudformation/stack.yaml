@@ -37,6 +37,21 @@ Resources:
                 Action:
                   - secretsmanager:GetSecretValue
                 Resource: !Ref BasicAuthSecret
+        - PolicyName: LaunchInstance
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Sid: VisualEditor0
+                Effect: Allow
+                Action:
+                  - ec2:DescribeImages
+                  - iam:PassRole
+                  - ec2:CreateTags
+                  - ec2:RunInstances
+                  - ec2:DescribeInstances
+                  - ssm:GetParameters
+                Resource: "*"
+
 
   # Lambda Function for Basic Auth Authorizer
   BasicAuthorizerFunction:
@@ -129,7 +144,7 @@ Resources:
       Code:
         S3Bucket: !Ref S3BucketName
         S3Key: lambda.zip
-      Timeout: 10
+      Timeout: 120
       MemorySize: 128
 
   # API Gateway

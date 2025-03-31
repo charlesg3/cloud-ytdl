@@ -12,7 +12,7 @@ Resources:
   EC2Role:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: EC2RoleForS3andECRAccess
+      RoleName: YTDLPEC2Role
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -23,24 +23,6 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore  # For Session Manager access (optional)
       Path: /
-
-  # Custom policy for ECR access
-  ECRAccessPolicy:
-    Type: AWS::IAM::Policy
-    Properties:
-      PolicyName: ECRAccessPolicy
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Action:
-              - ecr:GetAuthorizationToken
-              - ecr:BatchCheckLayerAvailability
-              - ecr:GetDownloadUrlForLayer
-              - ecr:BatchGetImage
-            Resource: '*'  # ECR GetAuthorizationToken requires * resource
-      Roles:
-        - !Ref EC2Role
 
   # Custom policy for S3 access to the specific bucket
   S3AccessPolicy:
@@ -54,14 +36,14 @@ Resources:
             Action:
               - s3:ListBucket
               - s3:GetBucketLocation
-            Resource: !Sub 'arn:aws:s3:::\${S3BucketName}'
+            Resource: !Sub 'arn:aws:s3:::${S3BucketName}'
           - Effect: Allow
             Action:
               - s3:PutObject
               - s3:GetObject
               - s3:DeleteObject
               - s3:PutObjectAcl
-            Resource: !Sub 'arn:aws:s3:::\${S3BucketName}/*'
+            Resource: !Sub 'arn:aws:s3:::${S3BucketName}/*'
       Roles:
         - !Ref EC2Role
 
@@ -69,7 +51,7 @@ Resources:
   EC2InstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:
-      InstanceProfileName: EC2InstanceProfileWithS3andECRAccess
+      InstanceProfileName: EC2InstanceProfileYTDLP
       Path: /
       Roles:
         - !Ref EC2Role

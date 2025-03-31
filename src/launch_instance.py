@@ -92,14 +92,11 @@ shutdown -h now
     # Prepare network interface configuration (no public IP)
     network_interface = {
         "DeviceIndex": 0,
-        "AssociatePublicIpAddress": False,  # No public IP address
+        "AssociatePublicIpAddress": True,  # No public IP address
     }
 
     if subnet_id:
         network_interface["SubnetId"] = subnet_id
-
-    if security_group_id:
-        network_interface["Groups"] = [security_group_id]
 
     # Prepare launch specification
     launch_args = {
