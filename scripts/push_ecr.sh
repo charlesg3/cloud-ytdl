@@ -9,8 +9,8 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Configuration
-LOCAL_IMAGE="ytdlp-downloader"
-ECR_REPOSITORY_NAME="ytdlp-downloader"
+LOCAL_IMAGE="ytdlp-downloader-lambda"
+ECR_REPOSITORY_NAME="ytdlp-downloader-lambda"
 AWS_REGION=$(aws configure get region)
 
 # Print header

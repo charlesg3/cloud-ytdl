@@ -61,31 +61,9 @@ WORKDIR /app/yt-dlp
 COPY cookies.txt .
 
 # Create a directory for downloads
-RUN mkdir -p /downloads
+RUN mkdir -p /data
 
 # Set the working directory to /downloads
-WORKDIR /downloads
+WORKDIR /data
 
-
-# Create an entrypoint script
-RUN echo -e '#!/bin/bash\n\
-if [ -z "$VIDEO_ID" ]; then\n\
-    echo "ERROR: VIDEO_ID environment variable is not set!"\n\
-    echo "Usage: VIDEO_ID=<youtube-url-or-id> ./run.sh"\n\
-    exit 1\n\
-fi\n\
-\n\
-echo "Downloading video: $VIDEO_ID"\n\
-yt-dlp  --output "/downloads/%(title)s.%(ext)s" --yes-playlist --cookies /app/yt-dlp/cookies.txt -x --audio-format mp3 "$@" "$VIDEO_ID"\n\
-\n\
-# Fix permissions since Docker might run as root\n\
-chmod -R 777 /downloads/\n\
-echo "Download complete! Video saved in data directory."\n\
-' > /entrypoint.sh
-
-# Make the entrypoint script executable
-RUN chmod +x /entrypoint.sh
-
-# Set the entrypoint
-ENTRYPOINT ["/entrypoint.sh"]
-#CMD ["/bin/bash"]
+CMD ["/bin/bash"]

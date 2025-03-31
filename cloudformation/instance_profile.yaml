@@ -1,0 +1,88 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Creates IAM roles and instance profile for EC2 instances to access ECR and S3'
+
+Parameters:
+  S3BucketName:
+    Type: String
+    Default: "cloudytdl-20250330150643"
+    Description: Name of the S3 bucket that the EC2 instance needs to access
+
+Resources:
+  # IAM Role for EC2 instances
+  EC2Role:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: EC2RoleForS3andECRAccess
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore  # For Session Manager access (optional)
+      Path: /
+
+  # Custom policy for ECR access
+  ECRAccessPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: ECRAccessPolicy
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - ecr:GetAuthorizationToken
+              - ecr:BatchCheckLayerAvailability
+              - ecr:GetDownloadUrlForLayer
+              - ecr:BatchGetImage
+            Resource: '*'  # ECR GetAuthorizationToken requires * resource
+      Roles:
+        - !Ref EC2Role
+
+  # Custom policy for S3 access to the specific bucket
+  S3AccessPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: S3AccessPolicy
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - s3:ListBucket
+              - s3:GetBucketLocation
+            Resource: !Sub 'arn:aws:s3:::\${S3BucketName}'
+          - Effect: Allow
+            Action:
+              - s3:PutObject
+              - s3:GetObject
+              - s3:DeleteObject
+              - s3:PutObjectAcl
+            Resource: !Sub 'arn:aws:s3:::\${S3BucketName}/*'
+      Roles:
+        - !Ref EC2Role
+
+  # Create the instance profile
+  EC2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: EC2InstanceProfileWithS3andECRAccess
+      Path: /
+      Roles:
+        - !Ref EC2Role
+
+Outputs:
+  InstanceProfileName:
+    Description: Name of the instance profile for EC2 instances
+    Value: !Ref EC2InstanceProfile
+
+  InstanceProfileArn:
+    Description: ARN of the instance profile for EC2 instances
+    Value: !GetAtt EC2InstanceProfile.Arn
+
+  RoleName:
+    Description: Name of the IAM role for EC2 instances
+    Value: !Ref EC2Role
