@@ -5,6 +5,7 @@ Parameters:
   S3BucketName:
     Type: String
     Description: 'S3 bucket name for code deployment (must be unique)'
+    Default: 'cloudytdl-20250330150643'
 
 Resources:
   # Secret for Basic Auth credentials
