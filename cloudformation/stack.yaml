@@ -7,6 +7,22 @@ Parameters:
     Description: 'S3 bucket name for code deployment (must be unique)'
     Default: 'cloudytdl-20250330150643'
 
+  OutputBucketName:
+    Type: String
+    Description: S3 bucket where extracted MP3 files will be stored
+    Default: 'cloudytdl-20250330150643'
+
+
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: The VPC ID in which to deploy the Lambda function
+    Default: vpc-0d1b3423fbadeda4b
+
+  SubnetId:
+    Type: AWS::EC2::Subnet::Id
+    Description: The Subnet ID in which to deploy the Lambda function
+    Default: subnet-04ac751ef7d57da9a
+
 Resources:
   # Secret for Basic Auth credentials
   BasicAuthSecret:
@@ -17,7 +33,7 @@ Resources:
       SecretString: '{"admin": "REDACTED123"}'
 
   # IAM Role for Lambda Functions
-  LambdaExecutionRole:
+  AuthLambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
@@ -38,20 +54,44 @@ Resources:
                 Action:
                   - secretsmanager:GetSecretValue
                 Resource: !Ref BasicAuthSecret
-        - PolicyName: LaunchInstance
+
+  # Extraction Lambda execution role
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: S3AccessPolicy
           PolicyDocument:
-            Version: 2012-10-17
+            Version: '2012-10-17'
             Statement:
-              - Sid: VisualEditor0
-                Effect: Allow
+            - Effect: Allow
+              Action:
+                - s3:ListBucket
+                - s3:GetBucketLocation
+              Resource: !Sub 'arn:aws:s3:::${S3BucketName}'
+            - Effect: Allow
+              Action:
+                - s3:PutObject
+                - s3:GetObject
+              Resource: !Sub 'arn:aws:s3:::${S3BucketName}/*'
+        - PolicyName: S3OutputAccessPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
                 Action:
-                  - ec2:DescribeImages
-                  - iam:PassRole
-                  - ec2:CreateTags
-                  - ec2:RunInstances
-                  - ec2:DescribeInstances
-                  - ssm:GetParameters
-                Resource: "*"
+                  - s3:PutObject
+                  - s3:GetObject
+                Resource: !Sub 'arn:aws:s3:::${OutputBucketName}/*'
 
 
   # Lambda Function for Basic Auth Authorizer
@@ -61,7 +101,7 @@ Resources:
       FunctionName: api-basic-authorizer
       Runtime: python3.9
       Handler: index.handler
-      Role: !GetAtt LambdaExecutionRole.Arn
+      Role: !GetAtt AuthLambdaExecutionRole.Arn
       Code:
         ZipFile: |
           import base64
@@ -134,19 +174,21 @@ Resources:
           STACK_NAME: !Select [1, !Split ['/', !Ref 'AWS::StackId']]
           STACK_ID: !Select [2, !Split ['/', !Ref 'AWS::StackId']]
 
-  # Lambda Function for Backend API
-  BackendFunction:
+  # Lambda function for extracting audio
+  AudioExtractorFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: api-backend-service
-      Runtime: python3.9
-      Handler: index.handler
+      FunctionName: youtube-audio-extractor
+      Description: Downloads YouTube videos and extracts MP3 audio
       Role: !GetAtt LambdaExecutionRole.Arn
+      MemorySize: 2048
+      Timeout: 300
+      Environment:
+        Variables:
+          OUTPUT_BUCKET: !Ref OutputBucketName
+      PackageType: Image
       Code:
-        S3Bucket: !Ref S3BucketName
-        S3Key: lambda.zip
-      Timeout: 120
-      MemorySize: 128
+        ImageUri: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/yt-dlp-extract:latest"
 
   # API Gateway
   ApiGateway:
@@ -209,7 +251,7 @@ Resources:
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: GET
-        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${BackendFunction.Arn}/invocations
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AudioExtractorFunction.Arn}/invocations
 
   # PUT Method
   ApiPutMethod:
@@ -223,7 +265,7 @@ Resources:
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: PUT
-        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${BackendFunction.Arn}/invocations
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AudioExtractorFunction.Arn}/invocations
 
   # POST Method
   ApiPostMethod:
@@ -237,7 +279,26 @@ Resources:
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
-        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${BackendFunction.Arn}/invocations
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AudioExtractorFunction.Arn}/invocations
+
+  # CORS configuration for API
+  ApiGatewayCORS:
+    Type: AWS::ApiGateway::GatewayResponse
+    Properties:
+      ResponseParameters:
+        gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+        gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+        gatewayresponse.header.Access-Control-Allow-Methods: "'GET,PUT,POST,OPTIONS'"
+      ResponseType: DEFAULT_4XX
+      RestApiId: !Ref ApiGateway
+
+  ApiGatewayCORS5XX:
+    Type: AWS::ApiGateway::GatewayResponse
+    Properties:
+      ResponseParameters:
+        gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+      ResponseType: DEFAULT_5XX
+      RestApiId: !Ref ApiGateway
 
   # API Deployment
   ApiDeployment:

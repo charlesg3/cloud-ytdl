@@ -7,38 +7,31 @@ Parameters:
     Description: Name of the S3 bucket containing the Lambda layer ZIP
     Default: 'cloudytdl-20250330150643'
 
-  LayerKey:
-    Type: String
-    Description: S3 key for the Lambda layer ZIP file
-    Default: ffmpeg-ytdlp-lambda-layer.zip
-
   OutputBucketName:
     Type: String
     Description: S3 bucket where extracted MP3 files will be stored
     Default: 'cloudytdl-20250330150643'
 
+
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: The VPC ID in which to deploy the Lambda function
+    Default: vpc-0d1b3423fbadeda4b
+
+  SubnetId:
+    Type: AWS::EC2::Subnet::Id
+    Description: The Subnet ID in which to deploy the Lambda function
+    Default: subnet-04ac751ef7d57da9a
+
 Resources:
   # S3 bucket for audio output
-  OutputBucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketName: !Ref OutputBucketName
-      VersioningConfiguration:
-        Status: Enabled
+  # OutputBucket:
+  #   Type: AWS::S3::Bucket
+  #   Properties:
+  #     BucketName: !Ref OutputBucketName
+  #     VersioningConfiguration:
+  #       Status: Enabled
 
-  # FFmpeg and yt-dlp Lambda layer
-  FFmpegYtDlpLayer:
-    Type: AWS::Lambda::LayerVersion
-    Properties:
-      LayerName: ffmpeg-ytdlp-layer
-      Description: Lambda Layer containing FFmpeg and yt-dlp executables
-      Content:
-        S3Bucket: !Ref S3BucketName
-        S3Key: !Ref LayerKey
-      CompatibleRuntimes:
-        - python3.11
-      CompatibleArchitectures:
-        - x86_64
 
   # Lambda execution role
   LambdaExecutionRole:
@@ -63,11 +56,11 @@ Resources:
                 - s3:ListBucket
                 - s3:GetBucketLocation
               Resource: !Sub 'arn:aws:s3:::${S3BucketName}'
-              - Effect: Allow
-                Action:
-                  - s3:PutObject
-                  - s3:GetObject
-                Resource: !Sub 'arn:aws:s3:::${S3BucketName}/*'
+            - Effect: Allow
+              Action:
+                - s3:PutObject
+                - s3:GetObject
+              Resource: !Sub 'arn:aws:s3:::${S3BucketName}/*'
         - PolicyName: S3OutputAccessPolicy
           PolicyDocument:
             Version: '2012-10-17'
@@ -84,19 +77,15 @@ Resources:
     Properties:
       FunctionName: youtube-audio-extractor
       Description: Downloads YouTube videos and extracts MP3 audio
-      Runtime: python3.11
-      Handler: extrct.lambda_handler
       Role: !GetAtt LambdaExecutionRole.Arn
       MemorySize: 2048
       Timeout: 300
-      Layers:
-        - !Ref FFmpegYtDlpLayer
       Environment:
         Variables:
           OUTPUT_BUCKET: !Ref OutputBucketName
+      PackageType: Image
       Code:
-        S3Bucket: !Ref S3BucketName
-        S3Key: lambda.zip
+        ImageUri: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/yt-dlp-extract:latest"
 
 Outputs:
   AudioExtractorFunctionArn:
@@ -105,4 +94,4 @@ Outputs:
     
   OutputBucketName:
     Description: Name of the bucket where extracted audio files are stored
-    Value: !Ref OutputBucket
+    Value: !Ref OutputBucketName

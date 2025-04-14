@@ -6,7 +6,7 @@ set -e
 # Variables
 SUFFIX="$(date +%Y%m%d%H%M%S)"
 BUCKET_SUFFIX="20250330150643"
-TEMPLATE_FILE="cloudformation/stack.yaml"
+TEMPLATE_FILE="cloudformation/extractor_lambda.yaml"
 STACK_NAME="cloudytdl-${SUFFIX}"
 S3_BUCKET="cloudytdl-${BUCKET_SUFFIX}"
 
@@ -33,6 +33,19 @@ echo -e "${YELLOW}Deploying CloudFormation stack '$STACK_NAME' using template '$
 
 echo "Creating S3 bucket: $S3_BUCKET"
 # aws s3 mb s3://$S3_BUCKET
+
+# Create zip file with Lambda code
+echo "Packaging Lambda function..."
+mkdir -p build
+cp src/* build/
+pushd build
+zip -r ../lambda.zip *
+popd
+
+
+# Upload zip to S3
+echo "Uploading Lambda code to S3..."
+aws s3 cp lambda.zip s3://$S3_BUCKET/lambda.zip
 
 # Deploy the CloudFormation stack
 aws cloudformation create-stack \

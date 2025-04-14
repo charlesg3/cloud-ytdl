@@ -24,14 +24,63 @@ def setup_environment():
     os.environ["LD_LIBRARY_PATH"] = f"/opt/lib:{os.environ.get('LD_LIBRARY_PATH', '')}"
 
     # Make sure we can run the tools
+    ffmpeg_version = None
     try:
         ytdlp_version = subprocess.run(["yt-dlp", "--version"], capture_output=True, text=True, check=True)
-        ffmpeg_version = subprocess.run(["ffmpeg", "-version"], capture_output=True, text=True, check=True)
+        ffmpeg_version = subprocess.run(["ffmpeg", "-version"], capture_output=True, text=True, check=False)
         logger.info(f"yt-dlp version: {ytdlp_version.stdout.strip()}")
         logger.info(f"ffmpeg version: {ffmpeg_version.stdout.splitlines()[0] if ffmpeg_version.stdout else 'unknown'}")
         return True
     except Exception as e:
         logger.error(f"Failed to verify tools: {str(e)}")
+        logger.error(ffmpeg_version.stdout)
+        logger.error(ffmpeg_version.stderr)
+        return False
+
+
+def download_cookies():
+    """
+    Downloads the cookies.txt file from the S3 bucket specified in the OUTPUT_BUCKET
+    environment variable and saves it to /tmp/cookies.txt
+
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    # Set up logging
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+
+    # Get bucket name from environment variable
+    bucket_name = os.environ.get("OUTPUT_BUCKET")
+
+    if not bucket_name:
+        logger.error("OUTPUT_BUCKET environment variable is not set")
+        return False
+
+    # Define file paths
+    s3_key = "cookies.txt"  # The path to cookies.txt in the bucket
+    local_path = "/tmp/cookies.txt"
+
+    try:
+        logger.info(f"Downloading cookies.txt from bucket {bucket_name}")
+
+        # Create S3 client
+        s3 = boto3.client("s3")
+
+        # Download the file
+        s3.download_file(bucket_name, s3_key, local_path)
+        logger.info(f"Successfully downloaded cookies.txt to {local_path}")
+
+        # Verify file exists and has content
+        if os.path.exists(local_path) and os.path.getsize(local_path) > 0:
+            logger.info(f"Verification successful - file exists and contains data")
+            return True
+        else:
+            logger.warning(f"File exists but may be empty")
+            return False
+
+    except Exception as e:
+        logger.error(f"Error downloading cookies.txt: {str(e)}")
         return False
 
 
@@ -83,7 +132,9 @@ def run_ytdlp(command_args: List[str], working_dir: str) -> bool:
         return False
 
 
-def extract_audio(video_url: str, output_format: str = "mp3") -> Dict[str, Any]:
+def extract_audio(
+    video_url: str, output_filename: str = None, path: str = "audio", output_format: str = "mp3"
+) -> Dict[str, Any]:
     """
     Extract audio from a YouTube video URL.
 
@@ -101,18 +152,21 @@ def extract_audio(video_url: str, output_format: str = "mp3") -> Dict[str, Any]:
 
     try:
         # Use yt-dlp to download and extract audio
-        output_template = "%(title)s.%(ext)s"
+        output_template = f"{output_filename}.%(ext)s" if output_filename else "%(title)s.%(ext)s"
 
         # Prepare command args - use the best audio quality, convert to mp3
         command_args = [
             "-x",  # Extract audio
             "--audio-format",
             output_format,  # Set audio format
+            "--cookies",
+            "/tmp/cookies.txt",
+            "--no-cache-dir",
             "--audio-quality",
             "0",  # Best quality
             "-o",
             output_template,  # Output filename template
-            "--no-playlist",  # Don't download playlists
+            "--yes-playlist",  # Don't download playlists
             "--progress",  # Show progress
             video_url,  # The video URL
         ]
@@ -132,7 +186,7 @@ def extract_audio(video_url: str, output_format: str = "mp3") -> Dict[str, Any]:
         logger.info(f"Found audio file: {audio_file}")
 
         # Upload to S3
-        s3_key = f"audio/{audio_file.name}"
+        s3_key = f"{path}/{audio_file.name}"
         s3.upload_file(str(audio_file), os.environ["OUTPUT_BUCKET"], s3_key)
 
         # Generate a presigned URL for easy access
@@ -181,52 +235,30 @@ def lambda_handler(event, context):
     if not setup_environment():
         return {"statusCode": 500, "body": json.dumps({"success": False, "message": "Failed to set up environment"})}
 
-    # Check if we're running a direct command or extracting audio
-    if "command_args" in event:
-        if not isinstance(event["command_args"], list):
-            return {
-                "statusCode": 400,
-                "body": json.dumps({"success": False, "message": "command_args must be an array"}),
-            }
-
-        # Create a working directory
-        working_dir = f"/tmp/{uuid.uuid4()}"
-        os.makedirs(working_dir, exist_ok=True)
-
-        # Run the command
-        success = run_ytdlp(event["command_args"], working_dir)
-
-        # Try to find any generated files
-        files = list(Path(working_dir).glob("*"))
-        file_list = [str(file.name) for file in files]
-
-        # Upload files to S3 if successful
-        s3_files = []
-        if success and files:
-            for file in files:
-                if file.is_file():
-                    s3_key = f"downloads/{file.name}"
-                    try:
-                        s3.upload_file(str(file), os.environ["OUTPUT_BUCKET"], s3_key)
-                        s3_files.append({"name": file.name, "s3_key": s3_key, "bucket": os.environ["OUTPUT_BUCKET"]})
-                    except Exception as e:
-                        logger.error(f"Error uploading {file.name}: {str(e)}")
-
-        return {
-            "statusCode": 200 if success else 500,
-            "body": json.dumps({"success": success, "files": file_list, "s3_files": s3_files}),
-        }
-
-    # Process video extraction
-    elif "video_url" in event:
+    if "video_url" in event:
         video_url = event["video_url"]
+        output_filename = event.get("output_filename")
+        path = event.get("path", "audio")
         output_format = event.get("format", "mp3")
 
-        result = extract_audio(video_url, output_format)
+        if "cookies" in event:
+            output_path = "/tmp/cookies.txt"
+
+            # Save cookies to file
+            logger.info(f"Saving cookies data to {output_path}")
+            with open(output_path, "w") as file:
+                file.write(f"{event['cookies']}")
+
+            with open(output_path, "r") as file:
+                logger.info(file.read())
+        else:
+            download_cookies()
+
+        result = extract_audio(video_url, output_filename, path, output_format)
 
         return {"statusCode": 200 if result["success"] else 500, "body": json.dumps(result)}
     else:
         return {
             "statusCode": 400,
-            "body": json.dumps({"success": False, "message": "Missing required parameter: video_url or command_args"}),
+            "body": json.dumps({"success": False, "message": "Missing required parameter: video_url"}),
         }

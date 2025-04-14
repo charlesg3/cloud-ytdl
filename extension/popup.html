@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body {
+      width: 320px;
+      padding: 15px;
+      font-family: Arial, sans-serif;
+    }
+    h2 {
+      color: #cc0000;
+      margin-top: 0;
+    }
+    .subtitle {
+      font-size: 12px;
+      color: #666;
+      margin-bottom: 15px;
+    }
+    button {
+      width: 100%;
+      margin: 10px 0;
+      padding: 10px;
+      background-color: #cc0000;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    button:hover {
+      background-color: #aa0000;
+    }
+    .note {
+      font-size: 11px;
+      color: #666;
+      margin-top: 15px;
+    }
+    .container {
+        max-width: 800px;
+        margin: 0 auto;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        padding: 15px;
+        background-color: #f9f9f9;
+    }
+
+    .row {
+        display: flex;
+        align-items: center;
+        margin-bottom: 15px;
+        background-color: #fff;
+        border: 1px solid #e0e0e0;
+        border-radius: 4px;
+        padding: 8px 12px;
+    }
+
+    .label {
+        white-space: nowrap; /* Prevents the text from wrapping */
+        padding-right: 15px;
+        font-weight: 600;
+        color: #333;
+        flex: 0 0 auto; /* Don't grow, don't shrink, auto-width based on content */
+    }
+
+    .input-field {
+        flex: 1; /* Takes up all remaining space */
+        display: flex; /* Create another flex container for the input */
+    }
+
+    input {
+        width: 100%; /* Make input fill the span */
+        padding: 8px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        font-size: 12px;
+    }
+
+    input:focus {
+        outline: none;
+        border-color: #007bff;
+        box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+    }
+
+  </style>
+</head>
+<body>
+  <h2>Cloud YTDL</h2>
+  <div class="subtitle">Export YouTube audio for cloud downloading</div>
+  
+
+  <div class="container">
+    <div class="row">
+      <span class="label">Title:</span>
+      <span class="input-field"><input id="title" /></span>
+    </div>
+    <div class="row">
+      <span class="label">Path:</span>
+      <span class="input-field"><input id="path" value="music" /></span>
+    </div>
+  </div>
+
+  <button id="cloud-ytdl">Export YouTube Video</button>
+  <div class="note">
+    Note: Make sure you're logged in to YouTube before exporting.
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
