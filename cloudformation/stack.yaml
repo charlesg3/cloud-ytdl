@@ -12,17 +12,6 @@ Parameters:
     Description: S3 bucket where extracted MP3 files will be stored
     Default: 'cloudytdl-20250330150643'
 
-
-  VpcId:
-    Type: AWS::EC2::VPC::Id
-    Description: The VPC ID in which to deploy the Lambda function
-    Default: vpc-0d1b3423fbadeda4b
-
-  SubnetId:
-    Type: AWS::EC2::Subnet::Id
-    Description: The Subnet ID in which to deploy the Lambda function
-    Default: subnet-04ac751ef7d57da9a
-
 Resources:
   # Secret for Basic Auth credentials
   BasicAuthSecret:
@@ -54,6 +43,14 @@ Resources:
                 Action:
                   - secretsmanager:GetSecretValue
                 Resource: !Ref BasicAuthSecret
+
+  LambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref AutioExtractorFunction
+      Action: 'lambda:InvokeFunction'
+      Principal: 'apigateway.amazonaws.com'
+      SourceArn: !Sub 'arn:aws:apigateway:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*'
 
   # Extraction Lambda execution role
   LambdaExecutionRole:
@@ -194,7 +191,7 @@ Resources:
   ApiGateway:
     Type: AWS::ApiGateway::RestApi
     Properties:
-      Name: BasicAuthApi
+      Name: CloudYTDLApi
       Description: API with Basic Auth
       EndpointConfiguration:
         Types:
@@ -250,7 +247,7 @@ Resources:
       AuthorizerId: !Ref ApiAuthorizer
       Integration:
         Type: AWS_PROXY
-        IntegrationHttpMethod: GET
+        IntegrationHttpMethod: POST
         Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AudioExtractorFunction.Arn}/invocations
 
   # PUT Method
@@ -264,7 +261,7 @@ Resources:
       AuthorizerId: !Ref ApiAuthorizer
       Integration:
         Type: AWS_PROXY
-        IntegrationHttpMethod: PUT
+        IntegrationHttpMethod: POST
         Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AudioExtractorFunction.Arn}/invocations
 
   # POST Method
@@ -286,6 +283,7 @@ Resources:
     Type: AWS::ApiGateway::GatewayResponse
     Properties:
       ResponseParameters:
+        gatewayresponse.header.Access-Control-Allow-Credentials: "'false'"
         gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
         gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
         gatewayresponse.header.Access-Control-Allow-Methods: "'GET,PUT,POST,OPTIONS'"
