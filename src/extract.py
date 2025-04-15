@@ -6,6 +6,8 @@ import uuid
 import boto3
 from pathlib import Path
 from typing import Dict, Any, List
+from botocore.exceptions import ClientError
+
 
 # Configure logging
 logger = logging.getLogger()
@@ -244,6 +246,36 @@ def lambda_handler(event, context):
         path = event.get("path", "audio")
         output_format = event.get("format", "mp3")
 
+        bucket_name = os.environ.get("OUTPUT_BUCKET")
+
+        # check for file
+        try:
+            params = {"Bucket": bucket_name, "Key": f"{path}/{output_filename}.mp3"}
+            s3.head_object(**params)
+            logger.info(f"Found existing file: s3://{bucket_name}/{path}/{output_filename}.mp3")
+            presigned_url = s3.generate_presigned_url("get_object", Params=params)
+            result = {
+                "success": True,
+                "message": "Audio extracted successfully",
+                "file_name": f"{output_filename}.mp3",
+                "s3_key": params["Key"],
+                "bucket": bucket_name,
+                "download_url": presigned_url,
+            }
+            logger.info(f"Returning success: {json.dumps(result)}")
+            return {
+                "statusCode": 200,
+                "headers": {
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
+                    "Access-Control-Allow-Methods": "OPTIONS,POST,GET,PUT,DELETE",
+                },
+                "body": json.dumps(result),
+            }
+
+        except ClientError as e:
+            pass
+
         if "cookies" in event:
             output_path = "/tmp/cookies.txt"
 
@@ -259,9 +291,22 @@ def lambda_handler(event, context):
 
         result = extract_audio(video_url, output_filename, path, output_format)
 
-        return {"statusCode": 200 if result["success"] else 500, "body": json.dumps(result)}
+        return {
+            "statusCode": 200 if result["success"] else 500,
+            "headers": {
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
+                "Access-Control-Allow-Methods": "OPTIONS,POST,GET,PUT,DELETE",
+            },
+            "body": json.dumps(result),
+        }
     else:
         return {
             "statusCode": 400,
+            "headers": {
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
+                "Access-Control-Allow-Methods": "OPTIONS,POST,GET,PUT,DELETE",
+            },
             "body": json.dumps({"success": False, "message": "Missing required parameter: video_url"}),
         }
