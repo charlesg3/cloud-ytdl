@@ -235,6 +235,9 @@ def lambda_handler(event, context):
     if not setup_environment():
         return {"statusCode": 500, "body": json.dumps({"success": False, "message": "Failed to set up environment"})}
 
+    if "body" in event:
+        event = {**event, **json.loads(event["body"])}
+
     if "video_url" in event:
         video_url = event["video_url"]
         output_filename = event.get("output_filename")

@@ -1,12 +1,14 @@
 const apiUrl = "https://03siej7whh.execute-api.us-east-2.amazonaws.com/prod/api";
 const username = "admin";
-const password = "securepassword123";
 
 
 document.getElementById('cloud-ytdl').addEventListener('click', () => {
   console.log("Exporting...");
   var title = document.getElementById('title').value;
   var path = document.getElementById('path').value;
+  var password = document.getElementById('password').value;
+
+  chrome.storage.local.set({password: password}, function() { console.log('Saved preferences')})
 
   const data = {
     video_url: document.videoId,
@@ -23,6 +25,9 @@ document.getElementById('cloud-ytdl').addEventListener('click', () => {
 getVideoInfo().then(videoInfo => {
   document.videoId = videoInfo.videoId;
   document.getElementById('title').value = videoInfo.channel + " - " + videoInfo.title;
+  chrome.storage.local.get(['pssword'], function(password) {
+    document.getElementById('password').value = password;
+  })
 })
 
 exportCookies("youtube.com").then(cookies => {document.exportCookies = cookies;})
@@ -91,6 +96,7 @@ async function getVideoInfo() {
       if (title.endsWith(' - YouTube')) {
         title = title.slice(0, -10);
       }
+      title = title.replace(/^\([^)]*\) /,"");
 
       return {
         url: url.toString(),
@@ -108,19 +114,25 @@ async function getVideoInfo() {
 async function makePutRequestWithBasicAuth(url, username, password, data) {
   try {
     // Create the Authorization header by encoding username:password in base64
-    const credentials = btoa(`\${username}:\${password}`);
+    const credentials = btoa(`${username}:${password}`);
     
     const response = await fetch(url, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Basic \${credentials}`
+        'Authorization': `Basic ${credentials}`
       },
       body: JSON.stringify(data)
     });
+
+    const responseClone = response.clone()
     
     if (!response.ok) {
-      throw new Error(`HTTP error! Status: \${response.status}`);
+
+      responseClone.text().then(text => {
+        console.error(`Error Text: $${text}`)
+      })
+      throw new Error(`HTTP error! Status: ${response.status}`);
     }
     
     return await response.json(); // Parse JSON response
