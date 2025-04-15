@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
+  <title>Extension Options</title>
   <style>
     body {
       width: 320px;
@@ -69,62 +70,30 @@
       flex: 1; /* Takes up all remaining space */
       display: flex; /* Create another flex container for the input */
     }
-
-    input {
-      width: 100%; /* Make input fill the span */
-      padding: 8px;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      font-size: 12px;
+    #status {
+      margin-top: 10px;
     }
-
-    input:focus {
-      outline: none;
-      border-color: #007bff;
-      box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
-    }
-
-    #downloads .download-item {
-    }
-
-    #downloads .download-item a {
-      color: black;
-    }
-
-    #downloads .delete {
-      color: red;
-      font-weight: bold;
-      cursor: pointer;
-      margin-left: auto;
-    }
-
-    #downloads:not(:last-child) {
-      margin-bottom: 10px;
-    }
-
   </style>
 </head>
-<body>
+  <body>
+
   <h2>Cloud YTDL</h2>
   <div class="subtitle">Export YouTube audio for cloud downloading</div>
 
+
   <div class="container">
     <div class="row">
-      <span class="label">Title:</span>
-      <span class="input-field"><input id="title" /></span>
+      <span class="label">API Url:</span>
+      <span class="input-field"><input id="api-url" /></span>
     </div>
     <div class="row">
-      <span class="label">Path:</span>
-      <span class="input-field"><input id="path" value="music" /></span>
+      <span class="label">Password:</span>
+      <span class="input-field"><input id="password" type="password" /></span>
     </div>
   </div>
-
-  <button id="cloud-ytdl">Export YouTube Video</button>
   <div id="status"></div>
-  <div id="downloads"></div>
-  <div class="note">
-    Note: Make sure you're logged in to YouTube before exporting.
-  </div>
-  <script src="popup.js"></script>
-</body>
+  <button id="save">Save</button>
+
+  <script src="options.js"></script>
+  </body>
 </html>

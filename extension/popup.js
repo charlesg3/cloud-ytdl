@@ -1,14 +1,77 @@
-const apiUrl = "https://03siej7whh.execute-api.us-east-2.amazonaws.com/prod/api";
-const username = "admin";
+function init() {
+  chrome.storage.local.get(
+    { apiUrl: "", password: "" },
+    (items) => {
+      if(items.apiUrl == "" || items.password == ""){
+        if (chrome.runtime.openOptionsPage) {
+          chrome.runtime.openOptionsPage();
+        } else {
+          window.open(chrome.runtime.getURL('options.html'));
+        }
+      }
+    }
+  );
 
+  getVideoInfo().then(videoInfo => {
+    document.videoId = videoInfo.videoId;
+    document.getElementById('title').value = videoInfo.channel + " - " + videoInfo.title;
+  })
 
-document.getElementById('cloud-ytdl').addEventListener('click', () => {
-  console.log("Exporting...");
+  exportCookies("youtube.com").then(cookies => {document.exportCookies = cookies;})
+}
+
+function add_download_link(data, response_data) {
+    const downloadsContainer = document.getElementById('downloads');
+
+    const linkWrapper = document.createElement('div');
+    linkWrapper.className = 'download-item';
+
+    const link = document.createElement('a');
+    link.href = response_data.download_url;
+    link.textContent = data.output_filename;
+
+    // Create the delete button (red X)
+    const deleteButton = document.createElement('span');
+    deleteButton.className = 'delete';
+    deleteButton.textContent = 'X';
+    deleteButton.title = 'Remove this download';
+
+    // Add event listener to the delete button
+    deleteButton.addEventListener('click', function() {
+        linkWrapper.remove(); // Remove the parent div when X is clicked
+    });
+
+    // Assemble the elements
+    linkWrapper.appendChild(link);
+    linkWrapper.appendChild(deleteButton);
+    downloadsContainer.appendChild(linkWrapper);
+}
+
+function status(text, clear = false) {
+  const status = document.getElementById('status');
+  status.textContent = text;
+  if(clear){
+    setTimeout(() => {
+      status.textContent = '';
+    }, 5000);
+  }
+}
+
+async function download() {
+  status("Exporting...")
   var title = document.getElementById('title').value;
   var path = document.getElementById('path').value;
-  var password = document.getElementById('password').value;
 
-  chrome.storage.local.set({password: password}, function() { console.log('Saved preferences')})
+  const config_p = new Promise((resolve) => {
+    chrome.storage.local.get(['apiUrl', 'password'], (result) => {
+      resolve(result);
+    });
+  });
+  const config = await config_p;
+
+  const apiUrl = config.apiUrl;
+  const password = config.password;
+  const user = config.user;
 
   const data = {
     video_url: document.videoId,
@@ -17,20 +80,17 @@ document.getElementById('cloud-ytdl').addEventListener('click', () => {
     cookies: document.exportCookies
   }
 
-  makePutRequestWithBasicAuth(apiUrl, username, password, data)
-  .then(data => console.log('Success:', data))
-  .catch(error => console.error('Error:', error));
-});
-
-getVideoInfo().then(videoInfo => {
-  document.videoId = videoInfo.videoId;
-  document.getElementById('title').value = videoInfo.channel + " - " + videoInfo.title;
-  chrome.storage.local.get(['pssword'], function(password) {
-    document.getElementById('password').value = password;
+  makePutRequestWithBasicAuth(apiUrl, user, password, data)
+  .then(response_data => {
+    status('Success!', true);
+    add_download_link(data, response_data);
   })
-})
+  .catch(error => status('Error: ' + JSON.stringify(error)));
+}
 
-exportCookies("youtube.com").then(cookies => {document.exportCookies = cookies;})
+
+document.addEventListener('DOMContentLoaded', init);
+document.getElementById('cloud-ytdl').addEventListener('click', download);
 
 
 async function exportCookies(domainFilter) {
